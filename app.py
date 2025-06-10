@@ -41,6 +41,35 @@ if new_files:
 #         st.markdown(f"• {file.name}")
 
 # -------------------------------
+# Definir función métrica actualizada
+# -------------------------------
+def metricas(df, filename=""):
+    resumen = {}
+
+    columnas_def = [col for col in df.columns if "def" in col.lower()]
+    columnas_temp = [col for col in df.columns if "temp" in col.lower()]
+    columnas_hum = [col for col in df.columns if "hum" in col.lower()]
+
+    if columnas_def:
+        resumen["Deformación promedio"] = df[columnas_def].mean(axis=1).mean()
+    else:
+        resumen["Deformación promedio"] = None
+
+    if len(columnas_temp) >= 2:
+        temp_promedios = df[columnas_temp].mean()
+        resumen["Diferencia temperatura"] = temp_promedios.max() - temp_promedios.min()
+    elif len(columnas_temp) == 1:
+        resumen["Diferencia temperatura"] = 0
+    else:
+        resumen["Diferencia temperatura"] = None
+
+    for i, col in enumerate(columnas_hum):
+        resumen[f"Humedad Sens. {i}"] = df[col].mean()
+
+    resumen["Archivo"] = filename
+    return pd.DataFrame([resumen])
+
+# -------------------------------
 # 🔘 Botón para procesar archivos
 # -------------------------------
 if st.button("🔄 Procesar archivos"):
