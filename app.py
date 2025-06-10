@@ -4,10 +4,9 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from io import BytesIO
 from utils.IO import extract_excel_to_dataframe
-from utils.calculos import metricas, extraer_fecha_desde_nombre
+from utils.calculos import extraer_fecha_desde_nombre
 
 st.title("La app de Julio")
-
 
 # -------------------------------
 # Inicializar estado
@@ -33,12 +32,6 @@ if new_files:
     for f in new_files:
         if f.name not in [file.name for file in st.session_state["uploaded_files"]]:
             st.session_state["uploaded_files"].append(f)
-
-# # Mostrar archivos pendientes
-# if st.session_state["uploaded_files"]:
-#     st.info("📂 Archivos pendientes de procesar:")
-#     for file in st.session_state["uploaded_files"]:
-#         st.markdown(f"• {file.name}")
 
 # -------------------------------
 # Definir función métrica actualizada
@@ -84,6 +77,7 @@ if st.button("🔄 Procesar archivos"):
             df["Fecha"] = fecha_archivo
 
             summary_df = metricas(df, filename=uploaded_file.name)
+            summary_df["Fecha"] = fecha_archivo  # ✅ Agrega la fecha al resumen
 
             nombres_previos = [s["Archivo"].iloc[0] for s in st.session_state["all_summaries"]]
             if uploaded_file.name not in nombres_previos:
@@ -99,7 +93,6 @@ if st.button("🔄 Procesar archivos"):
         except Exception as e:
             st.error(f"❌ Error al procesar {uploaded_file.name}: {e}")
 
-    # Vaciar lista de archivos pendientes tras procesarlos
     st.session_state["uploaded_files"] = []
 
 # -------------------------------
@@ -122,7 +115,6 @@ if st.session_state["all_summaries"]:
     resumen_total = pd.concat(st.session_state["all_summaries"], ignore_index=True)
     st.dataframe(resumen_total, use_container_width=True)
 
-    # Descargar resumen
     resumen_excel = BytesIO()
     with pd.ExcelWriter(resumen_excel, engine="xlsxwriter") as writer:
         resumen_total.to_excel(writer, index=False, sheet_name="Resumen")
@@ -138,42 +130,43 @@ if st.session_state["all_summaries"]:
         file_name="resumen_completo.csv", mime="text/csv"
     )
 
-    # -------------------------------
-    # 📈 Gráfica interactiva
-    # -------------------------------
     st.subheader("📈 Visualización de series temporales")
 
-    resumen_total["Fecha"] = pd.to_datetime(resumen_total["Fecha"], format="%d/%m/%Y")
-    resumen_total = resumen_total.sort_values("Fecha")
-
-    metricas_para_graficar = [
-        "Deformación promedio",
-        "Diferencia temperatura",
-        "Humedad Sens. 0",
-        "Humedad Sens. 1",
-        "Humedad Sens. 2",
-        "Humedad Sens. 3",
-        "Humedad Sens. 4",
-    ]
-
-    opcion = st.selectbox(
-        "Selecciona una métrica para visualizar (o 'Todas')",
-        ["Todas"] + metricas_para_graficar
-    )
-
-    fig, ax = plt.subplots()
-    if opcion == "Todas":
-        for metrica in metricas_para_graficar:
-            ax.plot(resumen_total["Fecha"], resumen_total[metrica], marker="o", label=metrica)
-        ax.set_title("Todas las métricas en el tiempo")
-        ax.legend()
+    if "Fecha" not in resumen_total.columns:
+        st.error("❌ La columna 'Fecha' no está disponible en el resumen. Verifica que todos los archivos tengan fecha asignada.")
     else:
-        ax.plot(resumen_total["Fecha"], resumen_total[opcion], marker="o", color="tab:blue")
-        ax.set_title(f"{opcion} en el tiempo")
+        resumen_total["Fecha"] = pd.to_datetime(resumen_total["Fecha"], format="%d/%m/%Y")
+        resumen_total = resumen_total.sort_values("Fecha")
 
-    ax.set_xlabel("Fecha")
-    ax.set_ylabel("Valor")
-    ax.grid(True)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
-    fig.autofmt_xdate()
-    st.pyplot(fig)
+        metricas_para_graficar = [
+            "Deformación promedio",
+            "Diferencia temperatura",
+            "Humedad Sens. 0",
+            "Humedad Sens. 1",
+            "Humedad Sens. 2",
+            "Humedad Sens. 3",
+            "Humedad Sens. 4",
+        ]
+
+        opcion = st.selectbox(
+            "Selecciona una métrica para visualizar (o 'Todas')",
+            ["Todas"] + metricas_para_graficar
+        )
+
+        fig, ax = plt.subplots()
+        if opcion == "Todas":
+            for metrica in metricas_para_graficar:
+                if metrica in resumen_total.columns:
+                    ax.plot(resumen_total["Fecha"], resumen_total[metrica], marker="o", label=metrica)
+            ax.set_title("Todas las métricas en el tiempo")
+            ax.legend()
+        else:
+            ax.plot(resumen_total["Fecha"], resumen_total[opcion], marker="o", color="tab:blue")
+            ax.set_title(f"{opcion} en el tiempo")
+
+        ax.set_xlabel("Fecha")
+        ax.set_ylabel("Valor")
+        ax.grid(True)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
+        fig.autofmt_xdate()
+        st.pyplot(fig)
