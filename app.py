@@ -20,44 +20,62 @@ def extraer_fecha_desde_nombre(nombre_archivo):
         return f"{dia}/{mes}/{año}"
     return "Fecha desconocida"
 
-def leer_excel_robusto(uploaded_file):
+def leer_excel_robusto(uploaded_file, debug=False):
     """
-    Intenta leer el archivo Excel con diferentes métodos
+    Intenta leer el archivo Excel con diferentes métodos.
+    Solo muestra errores si todos los métodos fallan.
+    Si debug=True, muestra los warnings internos.
     """
-    # Primero intentar con la función original
+    errores = []
+
+    # Intentar con función original
     try:
         df = extract_excel_to_dataframe(uploaded_file)
-        st.info(f"✅ Archivo leído con método original")
+        st.success(f"✅ Archivo leído correctamente")
         return df
     except Exception as e1:
-        st.warning(f"⚠️ Método original falló: {e1}")
+        errores.append(f"Método original: {e1}")
+        if debug:
+            st.warning(f"⚠️ Método original falló: {e1}")
     
     # Intentar con openpyxl
     try:
         df = pd.read_excel(uploaded_file, engine='openpyxl')
-        st.info(f"✅ Archivo leído con openpyxl")
+        st.success(f"✅ Archivo leído correctamente (openpyxl)")
         return df
     except Exception as e2:
-        st.warning(f"⚠️ openpyxl falló: {e2}")
-    
-    # Intentar con xlrd (para archivos .xls antiguos)
+        errores.append(f"openpyxl: {e2}")
+        if debug:
+            st.warning(f"⚠️ openpyxl falló: {e2}")
+
+    # Intentar con xlrd (para .xls antiguos)
     try:
         df = pd.read_excel(uploaded_file, engine='xlrd')
-        st.info(f"✅ Archivo leído con xlrd")
+        st.success(f"✅ Archivo leído correctamente (xlrd)")
         return df
     except Exception as e3:
-        st.warning(f"⚠️ xlrd falló: {e3}")
-    
-    # Intentar leyendo solo las primeras hojas
+        errores.append(f"xlrd: {e3}")
+        if debug:
+            st.warning(f"⚠️ xlrd falló: {e3}")
+
+    # Intentar solo primera hoja
     try:
         df = pd.read_excel(uploaded_file, engine='openpyxl', sheet_name=0)
-        st.info(f"✅ Archivo leído con openpyxl (solo primera hoja)")
+        st.success(f"✅ Archivo leído correctamente (solo primera hoja)")
         return df
     except Exception as e4:
-        st.warning(f"⚠️ openpyxl (primera hoja) falló: {e4}")
-    
-    # Si todo falla, lanzar error
-    raise Exception(f"❌ No se pudo leer el archivo con ningún método disponible")
+        errores.append(f"openpyxl primera hoja: {e4}")
+        if debug:
+            st.warning(f"⚠️ openpyxl (primera hoja) falló: {e4}")
+
+    # Si todos fallan, mostrar error acumulado al usuario final
+    error_message = (
+        "❌ No se pudo leer el archivo con ningún método disponible.\n\n"
+        "Detalles técnicos (para soporte):\n" +
+        "\n".join(errores)
+    )
+    st.error(error_message)
+    raise Exception(error_message)
 
 def metricas_flexible(df, filename=""):
     """
