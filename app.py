@@ -34,6 +34,162 @@ if new_files:
             st.session_state["uploaded_files"].append(f)
 
 # -------------------------------
+# 🔍 Botón de diagnóstico
+# -------------------------------
+if st.session_state["uploaded_files"]:
+    if st.button("🔍 Diagnosticar columnas de archivos"):
+        st.subheader("🔍 Diagnóstico de columnas")
+        for uploaded_file in st.session_state["uploaded_files"]:
+            try:
+                df = extract_excel_to_dataframe(uploaded_file)
+                df.columns = df.columns.str.strip()
+                
+                st.write(f"**📁 {uploaded_file.name}**")
+                
+                # Mostrar todas las columnas
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write("**Todas las columnas:**")
+                    for i, col in enumerate(df.columns):
+                        st.write(f"{i+1}. `{col}`")
+                
+                with col2:
+                    # Clasificar columnas
+                    deformacion_cols = [col for col in df.columns if any(x in col.lower() for x in ['def', 'defor'])]
+                    temp_cols = [col for col in df.columns if any(x in col.lower() for x in ['temp', 'cal'])]
+                    hum_cols = [col for col in df.columns if 'hum' in col.lower()]
+                    
+                    st.write("**Columnas clasificadas:**")
+                    st.write(f"🔧 Deformación ({len(deformacion_cols)}): {deformacion_cols}")
+                    st.write(f"🌡️ Temperatura ({len(temp_cols)}): {temp_cols}")
+                    st.write(f"💧 Humedad ({len(hum_cols)}): {hum_cols}")
+                
+                st.divider()
+                
+            except Exception as e:
+                st.error(f"❌ Error al diagnosticar {uploaded_file.name}: {e}")
+
+# -------------------------------
+# Función metricas adaptada (más flexible)
+# -------------------------------
+def metricas_flexible(df, filename=""):
+    fecha_str = extraer_fecha_desde_nombre(filename)
+    
+    # -------------------------------
+    # Extraer columnas con múltiples patrones
+    # -------------------------------
+    # Deformación: buscar varios patrones
+    deformacion = df.filter(like='_Def')
+    if deformacion.empty:
+        deformacion = df.filter(like='def')
+    if deformacion.empty:
+        deformacion = df.filter(like='Def')
+    if deformacion.empty:
+        # Buscar por contenido en nombre de columna
+        deformacion_cols = [col for col in df.columns if 'def' in col.lower()]
+        if deformacion_cols:
+            deformacion = df[deformacion_cols]
+    
+    # Temperatura: buscar varios patrones
+    temperatura = df.filter(like="_Cal")
+    if temperatura.empty:
+        temperatura = df.filter(like="temp")
+    if temperatura.empty:
+        temperatura = df.filter(like="Temp")
+    if temperatura.empty:
+        temp_cols = [col for col in df.columns if 'temp' in col.lower()]
+        if temp_cols:
+            temperatura = df[temp_cols]
+    
+    # Humedad: buscar varios patrones
+    humedad = df.filter(like="_Hum")
+    if humedad.empty:
+        humedad = df.filter(like="hum")
+    if humedad.empty:
+        humedad = df.filter(like="Hum")
+    if humedad.empty:
+        hum_cols = [col for col in df.columns if 'hum' in col.lower()]
+        if hum_cols:
+            humedad = df[hum_cols]
+    
+    # Validar que encontramos las columnas necesarias
+    if deformacion.empty:
+        raise ValueError(f"❌ No se encontraron columnas de deformación. Columnas disponibles: {list(df.columns)}")
+    if temperatura.empty:
+        raise ValueError(f"❌ No se encontraron columnas de temperatura. Columnas disponibles: {list(df.columns)}")
+    if humedad.empty:
+        raise ValueError(f"❌ No se encontraron columnas de humedad. Columnas disponibles: {list(df.columns)}")
+    
+    # -------------------------------
+    # Deformación promedio corregida
+    # -------------------------------
+    deformacion_sensi = deformacion.mean(skipna=True) * 1.2
+    vdefor = deformacion_sensi.values.flatten().tolist()
+    defo_prom = vdefor[0] if vdefor else None
+    
+    # -------------------------------
+    # Temperatura (buscar columna adecuada)
+    # -------------------------------
+    # Primero intentar encontrar columna específica "Temp_1_Cal"
+    temp_cols = [col for col in temperatura.columns if "Temp_1_Cal" in col]
+    if not temp_cols:
+        # Si no existe, usar la primera columna de temperatura disponible
+        temp_cols = temperatura.columns.tolist()
+    
+    if not temp_cols:
+        raise ValueError("❌ No se encontró ninguna columna de temperatura válida")
+    
+    temp_series = temperatura[temp_cols[0]]
+    if temp_series.isnull().all():
+        raise ValueError("❌ La columna de temperatura está vacía")
+    
+    temp_0 = temp_series.iloc[0]
+    temp_1 = temp_series.iloc[-1]
+    diff_temp = temp_1 - temp_0
+    
+    # -------------------------------
+    # Calcular humedad sensorial
+    # -------------------------------
+    vhumedad = humedad.mean(skipna=True).values.flatten().tolist()
+    sensores = len(vhumedad)
+    
+    constantes = [
+        (83.76, 27.95),
+        (65.87, 20.33),
+        (94.59, 14.46),
+        (87.58, 10.23),
+        (79.79, 14.82)
+    ]
+    
+    valores_humedad = []
+    for i in range(5):
+        if i < sensores:
+            C, D = constantes[i]
+            hs = (vhumedad[i] * 1.2 - defo_prom - (C * diff_temp)) / D
+            valores_humedad.append(hs)
+        else:
+            valores_humedad.append(None)
+    
+    # -------------------------------
+    # Resumen
+    # -------------------------------
+    resumen = {
+        "Fecha": [fecha_str],
+        "Archivo": [filename],
+        "Deformación promedio": [defo_prom],
+        "Diferencia temperatura": [diff_temp],
+        "Humedad Sens. 0": [valores_humedad[0]],
+        "Humedad Sens. 1": [valores_humedad[1]],
+        "Humedad Sens. 2": [valores_humedad[2]],
+        "Humedad Sens. 3": [valores_humedad[3]],
+        "Humedad Sens. 4": [valores_humedad[4]],
+        "Columnas encontradas": [f"Def: {len(deformacion.columns)}, Temp: {len(temperatura.columns)}, Hum: {len(humedad.columns)}"]
+    }
+    
+    return pd.DataFrame(resumen)
+
+# -------------------------------
 # 🔘 Botón para procesar archivos
 # -------------------------------
 if st.button("🔄 Procesar archivos"):
@@ -46,8 +202,8 @@ if st.button("🔄 Procesar archivos"):
             df = df.loc[:, ~df.isin(valores_a_eliminar).any()]
             df.columns = df.columns.str.strip()
 
-            # Generar resumen usando las métricas avanzadas de calculos.py
-            summary_df = metricas(df, filename=uploaded_file.name)
+            # Generar resumen usando la función flexible
+            summary_df = metricas_flexible(df, filename=uploaded_file.name)
 
             # Almacenar resultados
             nombres_previos = [s["Archivo"].iloc[0] for s in st.session_state["all_summaries"]]
