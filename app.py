@@ -24,7 +24,7 @@ if "last_uploaded" not in st.session_state:
     st.session_state["last_uploaded"] = None
 
 # -------------------------------
-# Subir archivos (sin procesar aún)
+# Subir archivos
 # -------------------------------
 new_files = st.file_uploader("Sube uno o varios archivos .xlsx", type=["xlsx"], accept_multiple_files=True)
 
@@ -34,32 +34,46 @@ if new_files:
             st.session_state["uploaded_files"].append(f)
 
 # -------------------------------
-# Definir función métrica actualizada
+# Función métrica mejorada
 # -------------------------------
 def metricas(df, filename=""):
     resumen = {}
+    original_columns = df.columns.tolist()  # Guardar nombres originales
 
-    columnas_def = [col for col in df.columns if "def" in col.lower()]
-    columnas_temp = [col for col in df.columns if "temp" in col.lower()]
-    columnas_hum = [col for col in df.columns if "hum" in col.lower()]
+    # Identificar sensores por tipo
+    columnas_def = [col for col in original_columns if "def" in col.lower()]
+    columnas_temp = [col for col in original_columns if "temp" in col.lower()]
+    columnas_hum = [col for col in original_columns if "hum" in col.lower()]
 
+    # 1. Deformación: Promedio general
     if columnas_def:
-        resumen["Deformación promedio"] = df[columnas_def].mean(axis=1).mean()
+        def_promedio = df[columnas_def].mean().mean()
+        resumen["Deformación promedio"] = def_promedio
     else:
         resumen["Deformación promedio"] = None
 
-    if len(columnas_temp) >= 2:
-        temp_promedios = df[columnas_temp].mean()
-        resumen["Diferencia temperatura"] = temp_promedios.max() - temp_promedios.min()
-    elif len(columnas_temp) == 1:
-        resumen["Diferencia temperatura"] = 0
+    # 2. Temperatura: Valores originales + diferencia
+    if columnas_temp:
+        # Calcular promedio por cada sensor
+        for col in columnas_temp:
+            resumen[f"Temp {col}"] = df[col].mean()
+        
+        # Calcular diferencia entre sensores
+        temp_means = df[columnas_temp].mean()
+        resumen["Diferencia temperatura"] = temp_means.max() - temp_means.min()
     else:
         resumen["Diferencia temperatura"] = None
 
-    for i, col in enumerate(columnas_hum):
-        resumen[f"Humedad Sens. {i}"] = df[col].mean()
+    # 3. Humedad: Valores originales con nombres específicos
+    hum_count = 0
+    for col in columnas_hum:
+        # Usar nombres más descriptivos basados en posición común
+        sensor_name = f"Humedad Sens. {hum_count+1}"
+        resumen[sensor_name] = df[col].mean()
+        hum_count += 1
 
     resumen["Archivo"] = filename
+    resumen["Total Sensores Humedad"] = hum_count
     return pd.DataFrame([resumen])
 
 # -------------------------------
@@ -69,16 +83,21 @@ if st.button("🔄 Procesar archivos"):
     for uploaded_file in st.session_state["uploaded_files"]:
         try:
             df = extract_excel_to_dataframe(uploaded_file)
+            
+            # Limpieza de datos
             valores_a_eliminar = [-1000000, -999979]
             df = df.loc[:, ~df.isin(valores_a_eliminar).any()]
             df.columns = df.columns.str.strip()
 
+            # Extraer fecha
             fecha_archivo = extraer_fecha_desde_nombre(uploaded_file.name)
             df["Fecha"] = fecha_archivo
 
+            # Generar resumen
             summary_df = metricas(df, filename=uploaded_file.name)
-            summary_df["Fecha"] = fecha_archivo  # ✅ Agrega la fecha al resumen
+            summary_df["Fecha"] = fecha_archivo
 
+            # Almacenar resultados
             nombres_previos = [s["Archivo"].iloc[0] for s in st.session_state["all_summaries"]]
             if uploaded_file.name not in nombres_previos:
                 st.session_state["all_summaries"].append(summary_df.copy())
@@ -99,12 +118,27 @@ if st.button("🔄 Procesar archivos"):
 # Mostrar último archivo procesado
 # -------------------------------
 if st.session_state.get("last_uploaded"):
-    st.success(f"✅ ¡{st.session_state['last_uploaded']['filename']} procesado correctamente!")
-    st.subheader("Primeras 5 filas del archivo más reciente")
-    st.dataframe(st.session_state["last_uploaded"]["df"].head(5), use_container_width=True)
-
-    st.subheader("Resumen de métricas del archivo más reciente")
-    st.dataframe(st.session_state["last_uploaded"]["summary"], use_container_width=True)
+    last = st.session_state["last_uploaded"]
+    st.success(f"✅ ¡{last['filename']} procesado correctamente!")
+    
+    # Mostrar detalle de sensores
+    st.subheader("Detectados en el archivo:")
+    summary = last["summary"]
+    
+    # Contadores de sensores
+    temp_cols = [c for c in summary.columns if c.startswith("Temp")]
+    hum_cols = [c for c in summary.columns if c.startswith("Humedad")]
+    
+    col1, col2 = st.columns(2)
+    col1.metric("Sensores de temperatura", len(temp_cols))
+    col2.metric("Sensores de humedad", summary["Total Sensores Humedad"].iloc[0])
+    
+    # Mostrar datos
+    with st.expander("📊 Ver primeras filas de datos"):
+        st.dataframe(last["df"].head(5), use_container_width=True)
+    
+    with st.expander("📝 Ver resumen completo"):
+        st.dataframe(summary, use_container_width=True)
 
 # -------------------------------
 # Mostrar y descargar resumen acumulado
@@ -115,6 +149,7 @@ if st.session_state["all_summaries"]:
     resumen_total = pd.concat(st.session_state["all_summaries"], ignore_index=True)
     st.dataframe(resumen_total, use_container_width=True)
 
+    # Botones de descarga
     resumen_excel = BytesIO()
     with pd.ExcelWriter(resumen_excel, engine="xlsxwriter") as writer:
         resumen_total.to_excel(writer, index=False, sheet_name="Resumen")
@@ -125,48 +160,46 @@ if st.session_state["all_summaries"]:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-    resumen_csv = resumen_total.to_csv(index=False).encode("utf-8")
-    st.download_button("📥 Descargar resumen combinado (CSV)", resumen_csv,
-        file_name="resumen_completo.csv", mime="text/csv"
-    )
-
+    # Visualización de series temporales
     st.subheader("📈 Visualización de series temporales")
-
+    
     if "Fecha" not in resumen_total.columns:
-        st.error("❌ La columna 'Fecha' no está disponible en el resumen. Verifica que todos los archivos tengan fecha asignada.")
+        st.error("❌ Falta columna 'Fecha' en el resumen")
     else:
-        resumen_total["Fecha"] = pd.to_datetime(resumen_total["Fecha"], format="%d/%m/%Y")
+        resumen_total["Fecha"] = pd.to_datetime(resumen_total["Fecha"])
         resumen_total = resumen_total.sort_values("Fecha")
 
-        metricas_para_graficar = [
-            "Deformación promedio",
-            "Diferencia temperatura",
-            "Humedad Sens. 0",
-            "Humedad Sens. 1",
-            "Humedad Sens. 2",
-            "Humedad Sens. 3",
-            "Humedad Sens. 4",
-        ]
-
-        opcion = st.selectbox(
-            "Selecciona una métrica para visualizar (o 'Todas')",
-            ["Todas"] + metricas_para_graficar
+        # Selección de métricas
+        metric_options = [col for col in resumen_total.columns if col not in ["Archivo", "Fecha", "Total Sensores Humedad"]]
+        selected_metrics = st.multiselect(
+            "Selecciona métricas para visualizar",
+            metric_options,
+            default=["Deformación promedio", "Diferencia temperatura"]
         )
 
-        fig, ax = plt.subplots()
-        if opcion == "Todas":
-            for metrica in metricas_para_graficar:
-                if metrica in resumen_total.columns:
-                    ax.plot(resumen_total["Fecha"], resumen_total[metrica], marker="o", label=metrica)
-            ax.set_title("Todas las métricas en el tiempo")
+        if selected_metrics:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            for metric in selected_metrics:
+                ax.plot(
+                    resumen_total["Fecha"], 
+                    resumen_total[metric], 
+                    marker="o", 
+                    linestyle="-",
+                    label=metric
+                )
+            
+            ax.set_title("Evolución temporal de las métricas")
+            ax.set_xlabel("Fecha")
+            ax.set_ylabel("Valor")
+            ax.grid(True, alpha=0.3)
             ax.legend()
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m/%Y'))
+            fig.autofmt_xdate()
+            st.pyplot(fig)
+            
+            # Mostrar tabla de datos del gráfico
+            with st.expander("📋 Ver datos del gráfico"):
+                st.dataframe(resumen_total[["Fecha"] + selected_metrics])
         else:
-            ax.plot(resumen_total["Fecha"], resumen_total[opcion], marker="o", color="tab:blue")
-            ax.set_title(f"{opcion} en el tiempo")
-
-        ax.set_xlabel("Fecha")
-        ax.set_ylabel("Valor")
-        ax.grid(True)
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
-        fig.autofmt_xdate()
-        st.pyplot(fig)
+            st.warning("Selecciona al menos una métrica para visualizar")
