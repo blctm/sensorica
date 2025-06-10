@@ -20,107 +20,6 @@ def extraer_fecha_desde_nombre(nombre_archivo):
         return f"{dia}/{mes}/{año}"
     return "Fecha desconocida"
 
-# -------------------------------
-# Inicializar estado
-# -------------------------------
-if "uploaded_files" not in st.session_state:
-    st.session_state["uploaded_files"] = []
-
-if "all_summaries" not in st.session_state:
-    st.session_state["all_summaries"] = []
-
-if "all_dataframes" not in st.session_state:
-    st.session_state["all_dataframes"] = []
-
-if "last_uploaded" not in st.session_state:
-    st.session_state["last_uploaded"] = None
-
-# -------------------------------
-# Subir archivos
-# -------------------------------
-new_files = st.file_uploader("Sube uno o varios archivos .xlsx", type=["xlsx"], accept_multiple_files=True)
-
-if new_files:
-    for f in new_files:
-        if f.name not in [file.name for file in st.session_state["uploaded_files"]]:
-            st.session_state["uploaded_files"].append(f)
-
-# -------------------------------
-# 🔍 Botón de diagnóstico
-# -------------------------------
-if st.session_state["uploaded_files"]:
-    if st.button("🔍 Diagnosticar columnas de archivos"):
-        st.subheader("🔍 Diagnóstico de columnas")
-        for uploaded_file in st.session_state["uploaded_files"]:
-            try:
-                # Usar función de lectura robusta
-                df = leer_excel_robusto(uploaded_file)
-                df.columns = df.columns.str.strip()
-                
-                st.write(f"**📁 {uploaded_file.name}**")
-                st.write(f"**Dimensiones:** {df.shape[0]} filas × {df.shape[1]} columnas")
-                
-                # Mostrar información básica
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.write("**Primeras 5 columnas:**")
-                    for i, col in enumerate(df.columns[:5]):
-                        st.write(f"{i+1}. `{col}`")
-                    
-                    if len(df.columns) > 5:
-                        st.write(f"... y {len(df.columns)-5} columnas más")
-                
-                with col2:
-                    # Clasificar columnas
-                    deformacion_cols = [col for col in df.columns if any(x in col.lower() for x in ['def', 'defor'])]
-                    temp_cols = [col for col in df.columns if any(x in col.lower() for x in ['temp', 'cal'])]
-                    hum_cols = [col for col in df.columns if 'hum' in col.lower()]
-                    
-                    st.write("**Columnas clasificadas:**")
-                    st.write(f"🔧 Deformación ({len(deformacion_cols)})")
-                    if deformacion_cols:
-                        for col in deformacion_cols[:3]:  # Mostrar máximo 3
-                            st.write(f"   • `{col}`")
-                        if len(deformacion_cols) > 3:
-                            st.write(f"   • ... y {len(deformacion_cols)-3} más")
-                    
-                    st.write(f"🌡️ Temperatura ({len(temp_cols)})")
-                    if temp_cols:
-                        for col in temp_cols[:3]:
-                            st.write(f"   • `{col}`")
-                        if len(temp_cols) > 3:
-                            st.write(f"   • ... y {len(temp_cols)-3} más")
-                    
-                    st.write(f"💧 Humedad ({len(hum_cols)})")
-                    if hum_cols:
-                        for col in hum_cols[:3]:
-                            st.write(f"   • `{col}`")
-                        if len(hum_cols) > 3:
-                            st.write(f"   • ... y {len(hum_cols)-3} más")
-                
-                # Mostrar muestra de datos
-                with st.expander(f"📊 Ver muestra de datos de {uploaded_file.name}"):
-                    st.dataframe(df.head(3), use_container_width=True)
-                
-                st.divider()
-                
-            except Exception as e:
-                st.error(f"❌ Error al diagnosticar {uploaded_file.name}: {e}")
-                st.write("**Información del error:**")
-                st.write(f"- Tipo de error: {type(e).__name__}")
-                st.write(f"- Mensaje: {str(e)}")
-                
-                # Intentar obtener información básica del archivo
-                try:
-                    st.write(f"- Tamaño del archivo: {uploaded_file.size} bytes")
-                    st.write(f"- Tipo MIME: {uploaded_file.type}")
-                except:
-                    pass
-
-# -------------------------------
-# Función de lectura robusta
-# -------------------------------
 def leer_excel_robusto(uploaded_file):
     """
     Intenta leer el archivo Excel con diferentes métodos
@@ -160,10 +59,10 @@ def leer_excel_robusto(uploaded_file):
     # Si todo falla, lanzar error
     raise Exception(f"❌ No se pudo leer el archivo con ningún método disponible")
 
-# -------------------------------
-# Función metricas adaptada (más flexible)
-# -------------------------------
 def metricas_flexible(df, filename=""):
+    """
+    Función metricas adaptada (más flexible)
+    """
     fecha_str = extraer_fecha_desde_nombre(filename)
     
     # -------------------------------
@@ -278,6 +177,104 @@ def metricas_flexible(df, filename=""):
     }
     
     return pd.DataFrame(resumen)
+
+# -------------------------------
+# Inicializar estado
+# -------------------------------
+if "uploaded_files" not in st.session_state:
+    st.session_state["uploaded_files"] = []
+
+if "all_summaries" not in st.session_state:
+    st.session_state["all_summaries"] = []
+
+if "all_dataframes" not in st.session_state:
+    st.session_state["all_dataframes"] = []
+
+if "last_uploaded" not in st.session_state:
+    st.session_state["last_uploaded"] = None
+
+# -------------------------------
+# Subir archivos
+# -------------------------------
+new_files = st.file_uploader("Sube uno o varios archivos .xlsx", type=["xlsx"], accept_multiple_files=True)
+
+if new_files:
+    for f in new_files:
+        if f.name not in [file.name for file in st.session_state["uploaded_files"]]:
+            st.session_state["uploaded_files"].append(f)
+
+# -------------------------------
+# 🔍 Botón de diagnóstico
+# -------------------------------
+if st.session_state["uploaded_files"]:
+    if st.button("🔍 Diagnosticar columnas de archivos"):
+        st.subheader("🔍 Diagnóstico de columnas")
+        for uploaded_file in st.session_state["uploaded_files"]:
+            try:
+                # Usar función de lectura robusta
+                df = leer_excel_robusto(uploaded_file)
+                df.columns = df.columns.str.strip()
+                
+                st.write(f"**📁 {uploaded_file.name}**")
+                st.write(f"**Dimensiones:** {df.shape[0]} filas × {df.shape[1]} columnas")
+                
+                # Mostrar información básica
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write("**Primeras 5 columnas:**")
+                    for i, col in enumerate(df.columns[:5]):
+                        st.write(f"{i+1}. `{col}`")
+                    
+                    if len(df.columns) > 5:
+                        st.write(f"... y {len(df.columns)-5} columnas más")
+                
+                with col2:
+                    # Clasificar columnas
+                    deformacion_cols = [col for col in df.columns if any(x in col.lower() for x in ['def', 'defor'])]
+                    temp_cols = [col for col in df.columns if any(x in col.lower() for x in ['temp', 'cal'])]
+                    hum_cols = [col for col in df.columns if 'hum' in col.lower()]
+                    
+                    st.write("**Columnas clasificadas:**")
+                    st.write(f"🔧 Deformación ({len(deformacion_cols)})")
+                    if deformacion_cols:
+                        for col in deformacion_cols[:3]:  # Mostrar máximo 3
+                            st.write(f"   • `{col}`")
+                        if len(deformacion_cols) > 3:
+                            st.write(f"   • ... y {len(deformacion_cols)-3} más")
+                    
+                    st.write(f"🌡️ Temperatura ({len(temp_cols)})")
+                    if temp_cols:
+                        for col in temp_cols[:3]:
+                            st.write(f"   • `{col}`")
+                        if len(temp_cols) > 3:
+                            st.write(f"   • ... y {len(temp_cols)-3} más")
+                    
+                    st.write(f"💧 Humedad ({len(hum_cols)})")
+                    if hum_cols:
+                        for col in hum_cols[:3]:
+                            st.write(f"   • `{col}`")
+                        if len(hum_cols) > 3:
+                            st.write(f"   • ... y {len(hum_cols)-3} más")
+                
+                # Mostrar muestra de datos
+                with st.expander(f"📊 Ver muestra de datos de {uploaded_file.name}"):
+                    st.dataframe(df.head(3), use_container_width=True)
+                
+                st.divider()
+                
+            except Exception as e:
+                st.error(f"❌ Error al diagnosticar {uploaded_file.name}: {e}")
+                st.write("**Información del error:**")
+                st.write(f"- Tipo de error: {type(e).__name__}")
+                st.write(f"- Mensaje: {str(e)}")
+                
+                # Intentar obtener información básica del archivo
+                try:
+                    st.write(f"- Tamaño del archivo: {uploaded_file.size} bytes")
+                    st.write(f"- Tipo MIME: {uploaded_file.type}")
+                except:
+                    pass
 
 # -------------------------------
 # 🔘 Botón para procesar archivos
