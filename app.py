@@ -3,10 +3,22 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from io import BytesIO
+import re
+from datetime import datetime
 from utils.IO import extract_excel_to_dataframe
-from utils.calculos import extraer_fecha_desde_nombre, metricas
 
 st.title("La app de Julio")
+
+# -------------------------------
+# Funciones auxiliares (incluidas directamente)
+# -------------------------------
+def extraer_fecha_desde_nombre(nombre_archivo):
+    """Extrae fecha del nombre del archivo en formato YYYY_MM_DD"""
+    match = re.search(r'(\d{4})_(\d{2})_(\d{2})', nombre_archivo)
+    if match:
+        año, mes, dia = match.groups()
+        return f"{dia}/{mes}/{año}"
+    return "Fecha desconocida"
 
 # -------------------------------
 # Inicializar estado
@@ -41,18 +53,23 @@ if st.session_state["uploaded_files"]:
         st.subheader("🔍 Diagnóstico de columnas")
         for uploaded_file in st.session_state["uploaded_files"]:
             try:
-                df = extract_excel_to_dataframe(uploaded_file)
+                # Usar función de lectura robusta
+                df = leer_excel_robusto(uploaded_file)
                 df.columns = df.columns.str.strip()
                 
                 st.write(f"**📁 {uploaded_file.name}**")
+                st.write(f"**Dimensiones:** {df.shape[0]} filas × {df.shape[1]} columnas")
                 
-                # Mostrar todas las columnas
+                # Mostrar información básica
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.write("**Todas las columnas:**")
-                    for i, col in enumerate(df.columns):
+                    st.write("**Primeras 5 columnas:**")
+                    for i, col in enumerate(df.columns[:5]):
                         st.write(f"{i+1}. `{col}`")
+                    
+                    if len(df.columns) > 5:
+                        st.write(f"... y {len(df.columns)-5} columnas más")
                 
                 with col2:
                     # Clasificar columnas
@@ -61,14 +78,87 @@ if st.session_state["uploaded_files"]:
                     hum_cols = [col for col in df.columns if 'hum' in col.lower()]
                     
                     st.write("**Columnas clasificadas:**")
-                    st.write(f"🔧 Deformación ({len(deformacion_cols)}): {deformacion_cols}")
-                    st.write(f"🌡️ Temperatura ({len(temp_cols)}): {temp_cols}")
-                    st.write(f"💧 Humedad ({len(hum_cols)}): {hum_cols}")
+                    st.write(f"🔧 Deformación ({len(deformacion_cols)})")
+                    if deformacion_cols:
+                        for col in deformacion_cols[:3]:  # Mostrar máximo 3
+                            st.write(f"   • `{col}`")
+                        if len(deformacion_cols) > 3:
+                            st.write(f"   • ... y {len(deformacion_cols)-3} más")
+                    
+                    st.write(f"🌡️ Temperatura ({len(temp_cols)})")
+                    if temp_cols:
+                        for col in temp_cols[:3]:
+                            st.write(f"   • `{col}`")
+                        if len(temp_cols) > 3:
+                            st.write(f"   • ... y {len(temp_cols)-3} más")
+                    
+                    st.write(f"💧 Humedad ({len(hum_cols)})")
+                    if hum_cols:
+                        for col in hum_cols[:3]:
+                            st.write(f"   • `{col}`")
+                        if len(hum_cols) > 3:
+                            st.write(f"   • ... y {len(hum_cols)-3} más")
+                
+                # Mostrar muestra de datos
+                with st.expander(f"📊 Ver muestra de datos de {uploaded_file.name}"):
+                    st.dataframe(df.head(3), use_container_width=True)
                 
                 st.divider()
                 
             except Exception as e:
                 st.error(f"❌ Error al diagnosticar {uploaded_file.name}: {e}")
+                st.write("**Información del error:**")
+                st.write(f"- Tipo de error: {type(e).__name__}")
+                st.write(f"- Mensaje: {str(e)}")
+                
+                # Intentar obtener información básica del archivo
+                try:
+                    st.write(f"- Tamaño del archivo: {uploaded_file.size} bytes")
+                    st.write(f"- Tipo MIME: {uploaded_file.type}")
+                except:
+                    pass
+
+# -------------------------------
+# Función de lectura robusta
+# -------------------------------
+def leer_excel_robusto(uploaded_file):
+    """
+    Intenta leer el archivo Excel con diferentes métodos
+    """
+    # Primero intentar con la función original
+    try:
+        df = extract_excel_to_dataframe(uploaded_file)
+        st.info(f"✅ Archivo leído con método original")
+        return df
+    except Exception as e1:
+        st.warning(f"⚠️ Método original falló: {e1}")
+    
+    # Intentar con openpyxl
+    try:
+        df = pd.read_excel(uploaded_file, engine='openpyxl')
+        st.info(f"✅ Archivo leído con openpyxl")
+        return df
+    except Exception as e2:
+        st.warning(f"⚠️ openpyxl falló: {e2}")
+    
+    # Intentar con xlrd (para archivos .xls antiguos)
+    try:
+        df = pd.read_excel(uploaded_file, engine='xlrd')
+        st.info(f"✅ Archivo leído con xlrd")
+        return df
+    except Exception as e3:
+        st.warning(f"⚠️ xlrd falló: {e3}")
+    
+    # Intentar leyendo solo las primeras hojas
+    try:
+        df = pd.read_excel(uploaded_file, engine='openpyxl', sheet_name=0)
+        st.info(f"✅ Archivo leído con openpyxl (solo primera hoja)")
+        return df
+    except Exception as e4:
+        st.warning(f"⚠️ openpyxl (primera hoja) falló: {e4}")
+    
+    # Si todo falla, lanzar error
+    raise Exception(f"❌ No se pudo leer el archivo con ningún método disponible")
 
 # -------------------------------
 # Función metricas adaptada (más flexible)
@@ -195,7 +285,8 @@ def metricas_flexible(df, filename=""):
 if st.button("🔄 Procesar archivos"):
     for uploaded_file in st.session_state["uploaded_files"]:
         try:
-            df = extract_excel_to_dataframe(uploaded_file)
+            # Usar función de lectura robusta
+            df = leer_excel_robusto(uploaded_file)
             
             # Limpieza de datos
             valores_a_eliminar = [-1000000, -999979]
