@@ -3,10 +3,15 @@ import os
 
 def extract_excel_to_dataframe(uploaded_file):
     try:
-        # Leer desde la segunda fila (fila 1) como cabecera
-        df = pd.read_excel(uploaded_file, header=1)
+        # Leer el archivo sin usar la primera fila como encabezado
+        df = pd.read_excel(uploaded_file, header=None, skiprows=1)
 
-        # Asegurar que todos los nombres de columnas son strings y limpiarlos
+        # Usar la segunda fila del archivo como encabezado
+        new_header = df.iloc[0]  # La "segunda" fila (después de saltar una)
+        df = df[1:]              # El resto de los datos
+        df.columns = new_header
+
+        # Convertir nombres de columna a string y limpiar
         df.columns = df.columns.map(str).str.strip()
 
         return df
