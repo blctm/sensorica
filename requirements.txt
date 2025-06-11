@@ -4,3 +4,5 @@ openpyxl
 matplotlib
 xlsxwriter
 numpy
+python-dateutil
+xlrd>=1.2.0  
