@@ -146,9 +146,7 @@ def metricas(df, filename=""):
     except KeyError as e:
         raise ValueError(f"❌ Error al acceder a las columnas: {e}")
     
-    # -------------------------------
     # Deformación promedio corregida
-    # -------------------------------
     try:
         deformacion_sensi = deformacion.mean(skipna=True) * 1.2
         vdefor = deformacion_sensi.values.flatten().tolist()
@@ -157,9 +155,7 @@ def metricas(df, filename=""):
         print(f"⚠️ Error calculando deformación: {e}")
         defo_prom = 0.0
     
-    # -------------------------------
     # Temperatura (usar primera columna válida)
-    # -------------------------------
     try:
         temp_series = temperatura.iloc[:, 0]
         if temp_series.isnull().all():
@@ -174,9 +170,7 @@ def metricas(df, filename=""):
         print(f"⚠️ Error calculando temperatura: {e}")
         diff_temp = 5.0
     
-    # -------------------------------
     # Calcular humedad sensorial
-    # -------------------------------
     try:
         vhumedad = humedad.mean(skipna=True).values.flatten().tolist()
         # Asegurar que tenemos al menos algunos valores
@@ -209,9 +203,7 @@ def metricas(df, filename=""):
             print(f"⚠️ Error calculando humedad sensorial {i}: {e}")
             valores_humedad.append(None)
     
-    # -------------------------------
     # Resumen
-    # -------------------------------
     resumen = {
         "Fecha": [fecha_str],
         "Archivo": [filename],
@@ -226,7 +218,3 @@ def metricas(df, filename=""):
     
     print(f"✅ Métricas calculadas exitosamente para {filename}")
     return pd.DataFrame(resumen)
-    }
-
-    return pd.DataFrame(resumen)
-
