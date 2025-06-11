@@ -21,7 +21,7 @@ def metricas(df, filename=""):
     # Buscar columnas con patrones flexibles
     # -------------------------------
     deformacion_cols = [col for col in df.columns if "def" in col.lower()]
-    temperatura_cols = [col for col in df.columns if "cal" in col.lower() or "temp" in col.lower()]
+    temperatura_cols = [col for col in df.columns if "temp" in col.lower() or "cal" in col.lower()]
     humedad_cols = [col for col in df.columns if "hum" in col.lower()]
 
     if not deformacion_cols:
@@ -45,7 +45,7 @@ def metricas(df, filename=""):
     # -------------------------------
     # Temperatura (usar primera columna válida)
     # -------------------------------
-    temp_series = temperatura[temperatura_cols[0]]
+    temp_series = temperatura.iloc[:, 0]
     if temp_series.isnull().all():
         raise ValueError("❌ La columna de temperatura está vacía")
 
@@ -92,3 +92,4 @@ def metricas(df, filename=""):
     }
 
     return pd.DataFrame(resumen)
+
