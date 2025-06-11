@@ -12,21 +12,28 @@ def extraer_fecha_desde_nombre(nombre_archivo):
 
 
 def metricas(df, filename=""):
+    # Limpiar nombres de columnas
+    df.columns = df.columns.str.strip()
+
     fecha_str = extraer_fecha_desde_nombre(filename)
 
     # -------------------------------
-    # Extraer columnas
+    # Buscar columnas con patrones flexibles
     # -------------------------------
-    deformacion = df.filter(like='_Def')
-    temperatura = df.filter(like="_Cal")
-    humedad = df.filter(like="_Hum")
+    deformacion_cols = [col for col in df.columns if "def" in col.lower()]
+    temperatura_cols = [col for col in df.columns if "cal" in col.lower() or "temp" in col.lower()]
+    humedad_cols = [col for col in df.columns if "hum" in col.lower()]
 
-    if deformacion.empty:
-        raise ValueError("❌ No se encontraron columnas de deformación ('_Def')")
-    if temperatura.empty:
-        raise ValueError("❌ No se encontraron columnas de temperatura ('_Cal')")
-    if humedad.empty:
-        raise ValueError("❌ No se encontraron columnas de humedad ('_Hum')")
+    if not deformacion_cols:
+        raise ValueError(f"❌ No se encontraron columnas de deformación. Columnas disponibles: {list(df.columns)}")
+    if not temperatura_cols:
+        raise ValueError(f"❌ No se encontraron columnas de temperatura. Columnas disponibles: {list(df.columns)}")
+    if not humedad_cols:
+        raise ValueError(f"❌ No se encontraron columnas de humedad. Columnas disponibles: {list(df.columns)}")
+
+    deformacion = df[deformacion_cols]
+    temperatura = df[temperatura_cols]
+    humedad = df[humedad_cols]
 
     # -------------------------------
     # Deformación promedio corregida
@@ -36,13 +43,9 @@ def metricas(df, filename=""):
     defo_prom = vdefor[0] if vdefor else None
 
     # -------------------------------
-    # Temperatura (buscar columna)
+    # Temperatura (usar primera columna válida)
     # -------------------------------
-    temp_cols = [col for col in temperatura.columns if "Temp_1_Cal" in col]
-    if not temp_cols:
-        raise ValueError("❌ No se encontró una columna de temperatura tipo 'Temp_1_Cal'")
-
-    temp_series = temperatura[temp_cols[0]]
+    temp_series = temperatura[temperatura_cols[0]]
     if temp_series.isnull().all():
         raise ValueError("❌ La columna de temperatura está vacía")
 
@@ -71,7 +74,7 @@ def metricas(df, filename=""):
             hs = (vhumedad[i] * 1.2 - defo_prom - (C * diff_temp)) / D
             valores_humedad.append(hs)
         else:
-            valores_humedad.append(None)  # Si no hay datos, poner None
+            valores_humedad.append(None)
 
     # -------------------------------
     # Resumen
