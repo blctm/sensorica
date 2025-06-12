@@ -209,6 +209,7 @@ def metricas(df, filename=""):
         "Archivo": [filename],
         "Deformación promedio": [defo_prom],
         "Diferencia temperatura": [diff_temp],
+        "Temperatura promedio": [temp_series.mean(skipna=True)],
         "Humedad Sens. 0": [valores_humedad[0]],
         "Humedad Sens. 1": [valores_humedad[1]],
         "Humedad Sens. 2": [valores_humedad[2]],
