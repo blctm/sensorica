@@ -11,32 +11,33 @@ def extraer_fecha_desde_nombre(nombre_archivo):
 
 def identificar_columnas(df):
     """
-    Identifica las columnas de deformación, temperatura y humedad de forma más robusta
+    Identifica las columnas usando los nombres originales con patrones específicos
     """
-    columnas = df.columns.astype(str).str.strip().str.lower()
+    columnas = df.columns.astype(str).str.strip()
+    columnas_lower = columnas.str.lower()
     
-    # Patrones más amplios para identificar columnas
-    patrones_deformacion = ['def', 'deform', 'strain', 'displacement']
-    patrones_temperatura = ['temp', 'temperature', 'cal', 'celsius']
-    patrones_humedad = ['hum', 'humidity', 'moisture', 'rh']
+    # Patrones específicos para los nombres originales
+    patrones_deformacion = ['def']
+    patrones_temperatura = ['temp', 'cal']
+    patrones_humedad = ['hum']
     
     deformacion_cols = []
     temperatura_cols = []
     humedad_cols = []
     
-    for i, col in enumerate(columnas):
-        col_original = df.columns[i]
+    for i, col_lower in enumerate(columnas_lower):
+        col_original = columnas[i]
         
-        # Verificar deformación
-        if any(patron in col for patron in patrones_deformacion):
+        # Verificar deformación (ej: Demos_2_Def_1)
+        if any(patron in col_lower for patron in patrones_deformacion) and 'temp' not in col_lower:
             deformacion_cols.append(col_original)
         
-        # Verificar temperatura
-        elif any(patron in col for patron in patrones_temperatura):
+        # Verificar temperatura (ej: Demos_5_Temp_1_Cal)
+        elif any(patron in col_lower for patron in patrones_temperatura):
             temperatura_cols.append(col_original)
         
-        # Verificar humedad
-        elif any(patron in col for patron in patrones_humedad):
+        # Verificar humedad (ej: Demos_3_Hum_1)
+        elif any(patron in col_lower for patron in patrones_humedad):
             humedad_cols.append(col_original)
     
     return deformacion_cols, temperatura_cols, humedad_cols
@@ -80,54 +81,75 @@ def metricas(df, filename=""):
     df.columns = df.columns.astype(str).str.strip()
     fecha_str = extraer_fecha_desde_nombre(filename)
 
+    # Primero intentar identificar por nombres originales
     deformacion_cols, temperatura_cols, humedad_cols = identificar_columnas(df)
 
-    if not deformacion_cols or not temperatura_cols:
+    # Solo usar identificación por contenido como respaldo si no se encuentran columnas
+    if not deformacion_cols and not temperatura_cols and not humedad_cols:
         deformacion_cols, temperatura_cols, humedad_cols = buscar_columnas_por_contenido(df)
 
+    # Respaldos finales si aún no se encuentran columnas
     if not deformacion_cols:
-        deformacion_cols = df.select_dtypes(include=[float, int]).columns.tolist()[:3]
+        # Buscar columnas que contengan 'def' o tomar las primeras numéricas
+        posibles_def = [col for col in df.columns if 'def' in col.lower()]
+        deformacion_cols = posibles_def if posibles_def else df.select_dtypes(include=[float, int]).columns.tolist()[:1]
 
     if not temperatura_cols:
-        temperatura_cols = df.select_dtypes(include=[float, int]).columns.tolist()[:1]
+        # Buscar columnas que contengan 'temp' o 'cal'
+        posibles_temp = [col for col in df.columns if any(x in col.lower() for x in ['temp', 'cal'])]
+        temperatura_cols = posibles_temp if posibles_temp else df.select_dtypes(include=[float, int]).columns.tolist()[:1]
 
-    deformacion = df[deformacion_cols]
-    temperatura = df[temperatura_cols]
+    if not humedad_cols:
+        # Buscar columnas que contengan 'hum'
+        posibles_hum = [col for col in df.columns if 'hum' in col.lower()]
+        humedad_cols = posibles_hum if posibles_hum else []
 
+    # Extraer datos usando nombres originales
+    deformacion = df[deformacion_cols] if deformacion_cols else pd.DataFrame()
+    temperatura = df[temperatura_cols] if temperatura_cols else pd.DataFrame()
+    
     if humedad_cols:
         humedad = df[humedad_cols]
     else:
         humedad = pd.DataFrame({'humedad_default': [50.0] * len(df)})
 
-    deformacion_sensi = deformacion.mean(skipna=True) * 1.2
-    defo_prom = deformacion_sensi.iloc[0] if not deformacion_sensi.empty else 0.0
+    # Calcular deformación promedio
+    if not deformacion.empty:
+        deformacion_sensi = deformacion.mean(skipna=True) * 1.2
+        defo_prom = deformacion_sensi.iloc[0] if not deformacion_sensi.empty else 0.0
+    else:
+        defo_prom = 0.0
 
     # Aplicar filtros consistentes para temperatura
-    temperatura = temperatura.apply(pd.to_numeric, errors='coerce')
-    temperatura_filtrada = temperatura[(temperatura >= -50) & (temperatura <= 100)]
+    if not temperatura.empty:
+        temperatura = temperatura.apply(pd.to_numeric, errors='coerce')
+        temperatura_filtrada = temperatura[(temperatura >= -50) & (temperatura <= 100)]
 
-    temp_col_filtrada = temperatura_filtrada.iloc[:, 0].dropna()
-    if not temp_col_filtrada.empty:
-        temp_0 = temp_col_filtrada.iloc[0]
-        temp_1 = temp_col_filtrada.iloc[-1]
-        diff_temp = temp_1 - temp_0
+        temp_col_filtrada = temperatura_filtrada.iloc[:, 0].dropna()
+        if not temp_col_filtrada.empty:
+            temp_0 = temp_col_filtrada.iloc[0]
+            temp_1 = temp_col_filtrada.iloc[-1]
+            diff_temp = temp_1 - temp_0
+        else:
+            diff_temp = 0
+
+        # Calcular promedio solo con valores filtrados
+        temp_promedio = temperatura_filtrada.mean(skipna=True)
+        temp_promedio_valor = temp_promedio.iloc[0] if not temp_promedio.empty else 0
     else:
         diff_temp = 0
-
-    # Calcular promedio solo con valores filtrados
-    temp_promedio = temperatura_filtrada.mean(skipna=True)
-    temp_promedio_valor = temp_promedio.iloc[0] if not temp_promedio.empty else 0
+        temp_promedio_valor = 0
 
     # Aplicar filtros consistentes para humedad
     humedad = humedad.apply(pd.to_numeric, errors='coerce')
-    humedad_filtrada = humedad[(humedad >= 0) & (humedad <= 100)]
+    humedad_filtrada = humedad[(humedad >= 0) & (humedad <= 1000)]  # Ampliado para μm/m
     
     # Calcular promedio solo con valores filtrados
     vhumedad_filtrada = humedad_filtrada.mean(skipna=True).values.flatten().tolist()
     
     # Si no hay suficientes valores de humedad filtrados, completar con valores por defecto
     while len(vhumedad_filtrada) < 5:
-        vhumedad_filtrada.append(50.0)
+        vhumedad_filtrada.append(200.0)  # Valor más apropiado para μm/m
 
     constantes = [(83.76, 27.95), (65.87, 20.33), (94.59, 14.46), (87.58, 10.23), (79.79, 14.82)]
 
@@ -137,17 +159,22 @@ def metricas(df, filename=""):
         hs = (vhumedad_filtrada[i] * 1.2 - defo_prom - (C * temp_promedio_valor)) / D
         valores_humedad.append(hs)
 
+    # Crear nombres para el resumen usando los nombres originales de las columnas
+    defo_nombre = deformacion_cols[0] if deformacion_cols else "Deformación"
+    temp_nombres = temperatura_cols if temperatura_cols else ["Temperatura"]
+    hum_nombres = humedad_cols[:5] if len(humedad_cols) >= 5 else humedad_cols + [f"Humedad_{i}" for i in range(len(humedad_cols), 5)]
+    
     resumen = {
         "Fecha": [fecha_str],
         "Archivo": [filename],
-        "Deformación promedio": [defo_prom],
-        "Diferencia temperatura": [diff_temp],
-        "Temperatura promedio": [temp_promedio_valor],
-        "Humedad Sens. 0": [valores_humedad[0]],
-        "Humedad Sens. 1": [valores_humedad[1]],
-        "Humedad Sens. 2": [valores_humedad[2]],
-        "Humedad Sens. 3": [valores_humedad[3]],
-        "Humedad Sens. 4": [valores_humedad[4]],
+        f"{defo_nombre} promedio": [defo_prom],
+        f"Diferencia {temp_nombres[0] if temp_nombres else 'Temperatura'}": [diff_temp],
+        f"{temp_nombres[0] if temp_nombres else 'Temperatura'} promedio": [temp_promedio_valor],
+        f"{hum_nombres[0]} Sens.": [valores_humedad[0]],
+        f"{hum_nombres[1]} Sens.": [valores_humedad[1]],
+        f"{hum_nombres[2]} Sens.": [valores_humedad[2]],
+        f"{hum_nombres[3]} Sens.": [valores_humedad[3]],
+        f"{hum_nombres[4]} Sens.": [valores_humedad[4]],
     }
 
     return pd.DataFrame(resumen)
