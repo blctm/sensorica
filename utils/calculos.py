@@ -83,27 +83,26 @@ def metricas(df, filename=""):
     if humedad_cols:
         try:
             humedad = df[humedad_cols].apply(pd.to_numeric, errors='coerce')
-            humedad_filtrada = humedad[(humedad >= 0) & (humedad <= 100)]
         except Exception as e:
             print(f"⚠️ Error procesando columnas de humedad: {e}")
-            humedad_filtrada = pd.DataFrame()
+            humedad = pd.DataFrame()
     else:
-        humedad_filtrada = pd.DataFrame()
+        humedad = pd.DataFrame()
 
-    vhumedad_filtrada = humedad_filtrada.mean(skipna=True)
+    vhumedad = humedad.mean(skipna=True)
     valores_humedad = {}
 
-    if len(vhumedad_filtrada.dropna()) > 0:
-        while len(vhumedad_filtrada) < 5:
-            vhumedad_filtrada = pd.concat([
-                vhumedad_filtrada,
-                pd.Series([50.0], index=[f"default_{len(vhumedad_filtrada)}"])
+    if len(vhumedad.dropna()) > 0:
+        while len(vhumedad) < 5:
+            vhumedad = pd.concat([
+                vhumedad,
+                pd.Series([50.0], index=[f"default_{len(vhumedad)}"])
             ])
-        columnas_humedad_validas = vhumedad_filtrada.index.tolist()
+        columnas_humedad_validas = vhumedad.index.tolist()
         constantes = [(83.76, 27.95), (65.87, 20.33), (94.59, 14.46), (87.58, 10.23), (79.79, 14.82)]
         for i, col in enumerate(columnas_humedad_validas[:5]):
             C, D = constantes[i]
-            hs = (vhumedad_filtrada[col] * 1.2 - defo_prom - (C * temp_promedio_valor)) / D
+            hs = (vhumedad[col] * 1.2 - defo_prom - (C * temp_promedio_valor)) / D
             valores_humedad[col] = hs
 
     resumen = {
