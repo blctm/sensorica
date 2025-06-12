@@ -92,6 +92,9 @@ def metricas(df, filename=""):
     vhumedad = humedad.mean(skipna=True)
     valores_humedad = {}
 
+    print("\n--- DEBUG: Valores promedio de humedad ---")
+    print(vhumedad)
+
     if len(vhumedad.dropna()) > 0:
         while len(vhumedad) < 5:
             vhumedad = pd.concat([
@@ -100,10 +103,19 @@ def metricas(df, filename=""):
             ])
         columnas_humedad_validas = vhumedad.index.tolist()
         constantes = [(83.76, 27.95), (65.87, 20.33), (94.59, 14.46), (87.58, 10.23), (79.79, 14.82)]
+
         for i, col in enumerate(columnas_humedad_validas[:5]):
-            C, D = constantes[i]
-            hs = (vhumedad[col] * 1.2 - defo_prom - (C * temp_promedio_valor)) / D
-            valores_humedad[col] = hs
+            try:
+                C, D = constantes[i]
+                print(f"\nCalculando humedad sensorial para: {col}")
+                print(f"  - Valor humedad: {vhumedad[col]}")
+                print(f"  - Deformación promedio: {defo_prom}")
+                print(f"  - Temp. promedio: {temp_promedio_valor}")
+                hs = (vhumedad[col] * 1.2 - defo_prom - (C * temp_promedio_valor)) / D
+                valores_humedad[col] = hs
+                print(f"  - Resultado hs: {hs}")
+            except Exception as e:
+                print(f"❌ Error calculando humedad sensorial para {col}: {e}")
 
     resumen = {
         "Fecha": [fecha_str],
