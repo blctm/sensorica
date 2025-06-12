@@ -130,3 +130,9 @@ def metricas(df, filename=""):
         resumen[col] = [val]
 
     return pd.DataFrame(resumen)
+
+
+    for col, val in valores_humedad.items():
+        resumen[col] = [val]
+
+    return pd.DataFrame(resumen)
