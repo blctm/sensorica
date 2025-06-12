@@ -15,9 +15,7 @@ def identificar_columnas(df):
     patrones_temperatura = ['temp', 'temperature', 'cal', 'celsius']
     patrones_humedad = ['hum', 'humidity', 'moisture', 'rh']
 
-    deformacion_cols = []
-    temperatura_cols = []
-    humedad_cols = []
+    deformacion_cols, temperatura_cols, humedad_cols = [], [], []
 
     for i, col in enumerate(columnas):
         col_original = df.columns[i]
@@ -32,16 +30,13 @@ def identificar_columnas(df):
 
 def buscar_columnas_por_contenido(df):
     columnas_numericas = df.select_dtypes(include=[float, int]).columns
-    deformacion_cols = []
-    temperatura_cols = []
-    humedad_cols = []
+    deformacion_cols, temperatura_cols, humedad_cols = [], [], []
 
     for col in columnas_numericas:
         valores = df[col].dropna()
         if len(valores) == 0:
             continue
         mean_val = valores.mean()
-        std_val = valores.std()
         min_val = valores.min()
         max_val = valores.max()
 
@@ -61,6 +56,7 @@ def metricas(df, filename=""):
     deformacion_cols, temperatura_cols, humedad_cols = identificar_columnas(df)
     if not deformacion_cols or not temperatura_cols:
         deformacion_cols, temperatura_cols, humedad_cols = buscar_columnas_por_contenido(df)
+
     if not deformacion_cols:
         deformacion_cols = df.select_dtypes(include=[float, int]).columns.tolist()[:3]
     if not temperatura_cols:
@@ -74,7 +70,6 @@ def metricas(df, filename=""):
 
     temperatura = temperatura.apply(pd.to_numeric, errors='coerce')
     temperatura_filtrada = temperatura[(temperatura >= -50) & (temperatura <= 100)]
-
     temp_col_filtrada = temperatura_filtrada.iloc[:, 0].dropna()
     if not temp_col_filtrada.empty:
         temp_0 = temp_col_filtrada.iloc[0]
@@ -92,15 +87,20 @@ def metricas(df, filename=""):
             humedad_filtrada = humedad[(humedad >= 0) & (humedad <= 100)]
         except Exception as e:
             print(f"⚠️ Error procesando columnas de humedad: {e}")
-            humedad_filtrada = pd.DataFrame({'humedad_default': [50.0] * len(df)})
+            humedad_filtrada = pd.DataFrame()
     else:
-        humedad_filtrada = pd.DataFrame({'humedad_default': [50.0] * len(df)})
+        humedad_filtrada = pd.DataFrame()
 
     vhumedad_filtrada = humedad_filtrada.mean(skipna=True)
     columnas_humedad_validas = vhumedad_filtrada.index.tolist()
 
-    while len(vhumedad_filtrada) < 5:
-        vhumedad_filtrada = pd.concat([vhumedad_filtrada, pd.Series([50.0])])
+    # Si no hay columnas válidas, usar valores por defecto
+    if not columnas_humedad_validas:
+        vhumedad_filtrada = pd.Series([50.0] * 5, index=[f"humedad_default_{i}" for i in range(5)])
+        columnas_humedad_validas = vhumedad_filtrada.index.tolist()
+    else:
+        while len(vhumedad_filtrada) < 5:
+            vhumedad_filtrada = pd.concat([vhumedad_filtrada, pd.Series([50.0], index=[f"default_{len(vhumedad_filtrada)}"])])
 
     constantes = [(83.76, 27.95), (65.87, 20.33), (94.59, 14.46), (87.58, 10.23), (79.79, 14.82)]
 
@@ -122,4 +122,3 @@ def metricas(df, filename=""):
         resumen[col] = [val]
 
     return pd.DataFrame(resumen)
-
