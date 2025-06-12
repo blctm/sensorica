@@ -96,17 +96,19 @@ def metricas(df, filename=""):
     else:
         humedad_filtrada = pd.DataFrame({'humedad_default': [50.0] * len(df)})
 
-    vhumedad_filtrada = humedad_filtrada.mean(skipna=True).values.flatten().tolist()
+    vhumedad_filtrada = humedad_filtrada.mean(skipna=True)
+    columnas_humedad_validas = vhumedad_filtrada.index.tolist()
+
     while len(vhumedad_filtrada) < 5:
-        vhumedad_filtrada.append(50.0)
+        vhumedad_filtrada = vhumedad_filtrada.append(pd.Series([50.0]))
 
     constantes = [(83.76, 27.95), (65.87, 20.33), (94.59, 14.46), (87.58, 10.23), (79.79, 14.82)]
 
-    valores_humedad = []
-    for i in range(5):
+    valores_humedad = {}
+    for i, col in enumerate(columnas_humedad_validas[:5]):
         C, D = constantes[i]
-        hs = (vhumedad_filtrada[i] * 1.2 - defo_prom - (C * temp_promedio_valor)) / D
-        valores_humedad.append(hs)
+        hs = (vhumedad_filtrada[col] * 1.2 - defo_prom - (C * temp_promedio_valor)) / D
+        valores_humedad[col] = hs
 
     resumen = {
         "Fecha": [fecha_str],
@@ -114,12 +116,10 @@ def metricas(df, filename=""):
         "Deformación promedio": [defo_prom],
         "Diferencia temperatura": [diff_temp],
         "Temperatura promedio": [temp_promedio_valor],
-        "Demos_2_Def_1 [μm/m]": [valores_humedad[0]],
-        "Demos_5_Temp_1_Cal [°C]": [valores_humedad[1]],
-        "Demos_6_Temp_1_Cal [°C]": [valores_humedad[2]],
-        "Demos_3_Hum_1 [μm/m]": [valores_humedad[3]],
-        "Demos_4_Hum_1 [μm/m]": [valores_humedad[4]],
     }
+
+    for col, val in valores_humedad.items():
+        resumen[col] = [val]
 
     return pd.DataFrame(resumen)
 
