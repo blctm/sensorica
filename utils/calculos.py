@@ -83,6 +83,7 @@ def metricas(df, filename=""):
     if humedad_cols:
         try:
             humedad = df[humedad_cols].apply(pd.to_numeric, errors='coerce')
+            humedad.replace(-1000000, pd.NA, inplace=True)
         except Exception as e:
             print(f"⚠️ Error procesando columnas de humedad: {e}")
             humedad = pd.DataFrame()
@@ -129,4 +130,3 @@ def metricas(df, filename=""):
         resumen[col] = [val]
 
     return pd.DataFrame(resumen)
-
