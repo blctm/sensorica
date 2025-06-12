@@ -100,7 +100,7 @@ def metricas(df, filename=""):
     columnas_humedad_validas = vhumedad_filtrada.index.tolist()
 
     while len(vhumedad_filtrada) < 5:
-        vhumedad_filtrada = vhumedad_filtrada.append(pd.Series([50.0]))
+        vhumedad_filtrada = pd.concat([vhumedad_filtrada, pd.Series([50.0])])
 
     constantes = [(83.76, 27.95), (65.87, 20.33), (94.59, 14.46), (87.58, 10.23), (79.79, 14.82)]
 
