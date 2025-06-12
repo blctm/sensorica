@@ -129,3 +129,4 @@ def metricas(df, filename=""):
         resumen[col] = [val]
 
     return pd.DataFrame(resumen)
+
