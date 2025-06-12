@@ -56,7 +56,6 @@ def metricas(df, filename=""):
     deformacion_cols, temperatura_cols, humedad_cols = identificar_columnas(df)
     if not deformacion_cols or not temperatura_cols:
         deformacion_cols, temperatura_cols, humedad_cols = buscar_columnas_por_contenido(df)
-
     if not deformacion_cols:
         deformacion_cols = df.select_dtypes(include=[float, int]).columns.tolist()[:3]
     if not temperatura_cols:
@@ -92,23 +91,20 @@ def metricas(df, filename=""):
         humedad_filtrada = pd.DataFrame()
 
     vhumedad_filtrada = humedad_filtrada.mean(skipna=True)
-    columnas_humedad_validas = vhumedad_filtrada.index.tolist()
-
-    # Si no hay columnas válidas, usar valores por defecto
-    if not columnas_humedad_validas:
-        vhumedad_filtrada = pd.Series([50.0] * 5, index=[f"humedad_default_{i}" for i in range(5)])
-        columnas_humedad_validas = vhumedad_filtrada.index.tolist()
-    else:
-        while len(vhumedad_filtrada) < 5:
-            vhumedad_filtrada = pd.concat([vhumedad_filtrada, pd.Series([50.0], index=[f"default_{len(vhumedad_filtrada)}"])])
-
-    constantes = [(83.76, 27.95), (65.87, 20.33), (94.59, 14.46), (87.58, 10.23), (79.79, 14.82)]
-
     valores_humedad = {}
-    for i, col in enumerate(columnas_humedad_validas[:5]):
-        C, D = constantes[i]
-        hs = (vhumedad_filtrada[col] * 1.2 - defo_prom - (C * temp_promedio_valor)) / D
-        valores_humedad[col] = hs
+
+    if len(vhumedad_filtrada.dropna()) > 0:
+        while len(vhumedad_filtrada) < 5:
+            vhumedad_filtrada = pd.concat([
+                vhumedad_filtrada,
+                pd.Series([50.0], index=[f"default_{len(vhumedad_filtrada)}"])
+            ])
+        columnas_humedad_validas = vhumedad_filtrada.index.tolist()
+        constantes = [(83.76, 27.95), (65.87, 20.33), (94.59, 14.46), (87.58, 10.23), (79.79, 14.82)]
+        for i, col in enumerate(columnas_humedad_validas[:5]):
+            C, D = constantes[i]
+            hs = (vhumedad_filtrada[col] * 1.2 - defo_prom - (C * temp_promedio_valor)) / D
+            valores_humedad[col] = hs
 
     resumen = {
         "Fecha": [fecha_str],
@@ -122,3 +118,4 @@ def metricas(df, filename=""):
         resumen[col] = [val]
 
     return pd.DataFrame(resumen)
+
