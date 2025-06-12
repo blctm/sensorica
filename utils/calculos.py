@@ -102,7 +102,7 @@ def metricas(df, filename=""):
     deformacion_sensi = deformacion.mean(skipna=True) * 1.2
     defo_prom = deformacion_sensi.iloc[0] if not deformacion_sensi.empty else 0.0
 
-    # Filtrar explícitamente temperaturas anómalas
+    # Aplicar filtros consistentes para temperatura
     temperatura = temperatura.apply(pd.to_numeric, errors='coerce')
     temperatura_filtrada = temperatura[(temperatura >= -50) & (temperatura <= 100)]
 
@@ -114,18 +114,27 @@ def metricas(df, filename=""):
     else:
         diff_temp = 0
 
+    # Calcular promedio solo con valores filtrados
     temp_promedio = temperatura_filtrada.mean(skipna=True)
+    temp_promedio_valor = temp_promedio.iloc[0] if not temp_promedio.empty else 0
 
-    vhumedad = humedad.mean(skipna=True).values.flatten().tolist()
-    while len(vhumedad) < 5:
-        vhumedad.append(50.0)
+    # Aplicar filtros consistentes para humedad
+    humedad = humedad.apply(pd.to_numeric, errors='coerce')
+    humedad_filtrada = humedad[(humedad >= 0) & (humedad <= 100)]
+    
+    # Calcular promedio solo con valores filtrados
+    vhumedad_filtrada = humedad_filtrada.mean(skipna=True).values.flatten().tolist()
+    
+    # Si no hay suficientes valores de humedad filtrados, completar con valores por defecto
+    while len(vhumedad_filtrada) < 5:
+        vhumedad_filtrada.append(50.0)
 
     constantes = [(83.76, 27.95), (65.87, 20.33), (94.59, 14.46), (87.58, 10.23), (79.79, 14.82)]
 
     valores_humedad = []
     for i in range(5):
         C, D = constantes[i]
-        hs = (vhumedad[i] * 1.2 - defo_prom - (C * temp_promedio.iloc[0])) / D if not temp_promedio.empty else 0
+        hs = (vhumedad_filtrada[i] * 1.2 - defo_prom - (C * temp_promedio_valor)) / D
         valores_humedad.append(hs)
 
     resumen = {
@@ -133,7 +142,7 @@ def metricas(df, filename=""):
         "Archivo": [filename],
         "Deformación promedio": [defo_prom],
         "Diferencia temperatura": [diff_temp],
-        "Temperatura promedio": [temp_promedio.mean()],
+        "Temperatura promedio": [temp_promedio_valor],
         "Humedad Sens. 0": [valores_humedad[0]],
         "Humedad Sens. 1": [valores_humedad[1]],
         "Humedad Sens. 2": [valores_humedad[2]],
