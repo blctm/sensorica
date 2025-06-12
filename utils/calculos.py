@@ -176,5 +176,18 @@ def metricas(df, filename=""):
         f"{hum_nombres[3]} Sens.": [valores_humedad[3]],
         f"{hum_nombres[4]} Sens.": [valores_humedad[4]],
     }
-
+def obtener_valor_resumen(df_resumen, tipo_columna):
+    """
+    Función auxiliar para obtener valores del resumen de forma flexible
+    """
+    if tipo_columna == "deformacion":
+        for col in df_resumen.columns:
+            if "deformación" in col.lower() or "def" in col.lower():
+                return df_resumen[col].iloc[0]
+    elif tipo_columna == "temperatura":
+        for col in df_resumen.columns:
+            if "temperatura" in col.lower() and "promedio" in col.lower():
+                return df_resumen[col].iloc[0]
+    # ... etc
+    return None
     return pd.DataFrame(resumen)
