@@ -105,7 +105,15 @@ def metricas(df, filename=""):
     # Filtrar explícitamente temperaturas anómalas
     temperatura = temperatura.apply(pd.to_numeric, errors='coerce')
     temperatura_filtrada = temperatura[(temperatura >= -50) & (temperatura <= 100)]
-    
+
+    temp_col_filtrada = temperatura_filtrada.iloc[:, 0].dropna()
+    if not temp_col_filtrada.empty:
+        temp_0 = temp_col_filtrada.iloc[0]
+        temp_1 = temp_col_filtrada.iloc[-1]
+        diff_temp = temp_1 - temp_0
+    else:
+        diff_temp = 0
+
     temp_promedio = temperatura_filtrada.mean(skipna=True)
 
     vhumedad = humedad.mean(skipna=True).values.flatten().tolist()
@@ -117,13 +125,14 @@ def metricas(df, filename=""):
     valores_humedad = []
     for i in range(5):
         C, D = constantes[i]
-        hs = (vhumedad[i] * 1.2 - defo_prom - (C * (temp_promedio.iloc[0] if not temp_promedio.empty else 0))) / D
+        hs = (vhumedad[i] * 1.2 - defo_prom - (C * temp_promedio.iloc[0])) / D if not temp_promedio.empty else 0
         valores_humedad.append(hs)
 
     resumen = {
         "Fecha": [fecha_str],
         "Archivo": [filename],
         "Deformación promedio": [defo_prom],
+        "Diferencia temperatura": [diff_temp],
         "Temperatura promedio": [temp_promedio.mean()],
         "Humedad Sens. 0": [valores_humedad[0]],
         "Humedad Sens. 1": [valores_humedad[1]],
